@@ -1,0 +1,20 @@
+Metadata-Version: 2.4
+Name: agent-telemetry
+Version: 0.1.0
+Summary: Lightweight OTEL-compatible tracing for LLM agents. Pure stdlib, zero deps.
+License: MIT
+Project-URL: Homepage, https://github.com/example/agent-telemetry
+Project-URL: Repository, https://github.com/example/agent-telemetry
+Project-URL: Bug Tracker, https://github.com/example/agent-telemetry/issues
+Keywords: telemetry,tracing,opentelemetry,llm,agents,observability
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Monitoring
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
