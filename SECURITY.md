@@ -4,26 +4,31 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | ✅        |
+| 1.x     | ✅ Yes     |
 
 ## Reporting a Vulnerability
 
-Please **do not** open public GitHub issues for security vulnerabilities.
+**Do not open a public GitHub issue for security vulnerabilities.**
 
-Report privately via email to: security@example.com
+Please email: **darshjme@gmail.com**
 
 Include:
 - Description of the vulnerability
 - Steps to reproduce
-- Impact assessment
+- Potential impact
 - Suggested fix (if any)
 
-We will respond within 72 hours and aim to release a patch within 14 days.
+You will receive a response within 48 hours.
 
 ## Scope
 
-agent-telemetry is a pure-stdlib observability library. The main attack surface is:
+`agent-telemetry` is a pure in-process metrics library with no network listeners, no file I/O, and no external dependencies. The attack surface is minimal. Relevant concerns:
 
-- **TraceCollector** — unbounded growth if `max_traces` is set very high; use a reasonable limit in production
-- **export_json** — span attributes are user-supplied; sanitize before forwarding to external collectors
-- **@traced attributes** — do not log sensitive data (API keys, PII) as span attributes
+- **Thread safety bugs** — race conditions in metric updates
+- **Denial of service** — unbounded memory growth in Histogram observation list
+- **Integer overflow** — counter values exceeding float precision
+
+## Out of Scope
+
+- Issues in your own application code using this library
+- Issues in Python itself or its standard library

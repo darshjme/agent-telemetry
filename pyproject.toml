@@ -4,40 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-telemetry"
-version = "0.1.0"
-description = "Lightweight OTEL-compatible tracing for LLM agents. Pure stdlib, zero deps."
+version = "1.0.0"
+description = "Lightweight stdlib-only metrics collection and export for LLM agents"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.10"
-dependencies = []
-keywords = ["telemetry", "tracing", "opentelemetry", "llm", "agents", "observability"]
+authors = [{ name = "Darshankumar Joshi", email = "darshjme@gmail.com" }]
+keywords = ["llm", "agents", "telemetry", "metrics", "observability"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Monitoring",
 ]
+requires-python = ">=3.10"
+dependencies = []
 
-[project.urls]
-Homepage = "https://github.com/example/agent-telemetry"
-Repository = "https://github.com/example/agent-telemetry"
-"Bug Tracker" = "https://github.com/example/agent-telemetry/issues"
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "-v --tb=short"
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
+addopts = "-v"

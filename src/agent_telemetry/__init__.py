@@ -1,12 +1,7 @@
-"""
-agent-telemetry: Lightweight OTEL-compatible tracing for LLM agents.
-Pure stdlib, zero dependencies.
-"""
+"""agent-telemetry: Lightweight stdlib-only metrics for LLM agents."""
 
-from .span import Span
-from .tracer import Tracer
-from .collector import TraceCollector
-from .decorator import traced
+from .metrics import Counter, Gauge, Histogram
+from .registry import MetricsRegistry
 
-__version__ = "0.1.0"
-__all__ = ["Span", "Tracer", "TraceCollector", "traced"]
+__all__ = ["Counter", "Gauge", "Histogram", "MetricsRegistry"]
+__version__ = "1.0.0"

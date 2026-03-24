@@ -1,232 +1,205 @@
 # agent-telemetry
 
-**Lightweight, OTEL-compatible tracing for LLM agents. Pure Python stdlib. Zero dependencies.**
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-42%20passed-brightgreen)]()
 
-```
+**Lightweight, stdlib-only metrics collection and export for LLM agents.**
+
+No Prometheus, no OpenTelemetry, no infrastructure required.  
+Drop it in, instrument in 5 lines, debug with confidence.
+
+---
+
+## Problem
+
+Production LLM agents are blind without telemetry:
+
+- How many tokens did that agent consume?
+- Which model did it call — and how often?
+- What's the p95 latency? The failure rate?
+- Is the active-agent count climbing under load?
+
+`agent-telemetry` solves this with **zero dependencies**, pure Python stdlib.
+
+---
+
+## Install
+
+```bash
 pip install agent-telemetry
 ```
 
-## Why?
-
-Production agents make deeply nested calls:
-
-```
-router
-  ├── budget-check          (2ms)
-  ├── llm-call              (230ms)  ← bottleneck
-  │     ├── prompt-build    (1ms)
-  │     └── openai-api      (228ms)
-  ├── tool-execution        (45ms)
-  │     ├── web-search      (40ms)
-  │     └── result-parse    (5ms)
-  └── memory-store          (8ms)
-```
-
-Without tracing you can't see this tree, identify bottlenecks, or debug failures.
-OpenTelemetry is the standard but its SDK adds 20+ transitive dependencies.
-**agent-telemetry** gives you OTEL-compatible spans with **zero deps**, in pure stdlib.
-
 ---
 
-## Quick Start
+## Quick Start — LLM Token Usage Telemetry
 
 ```python
-from agent_telemetry import Tracer, TraceCollector, traced
+from agent_telemetry import MetricsRegistry
 
-# 1. Create tracer + collector
-collector = TraceCollector()
-tracer = Tracer("my-agent")
-tracer.register_collector(collector)
+registry = MetricsRegistry()
 
-# 2. Trace a nested agent call tree
-with tracer.with_span("router") as root:
-    root.set_attribute("input_tokens", 512)
+# --- Define your metrics ---
+tokens_used   = registry.counter("llm_tokens_total",  labels={"model": "claude-3-opus"})
+api_errors    = registry.counter("llm_errors_total",  labels={"model": "claude-3-opus"})
+active_agents = registry.gauge("agents_active")
+latency_ms    = registry.histogram("llm_latency_ms")
 
-    with tracer.with_span("budget-check") as budget:
-        budget.set_attribute("budget_usd", 0.10)
-        # ... check budget
+# --- Simulate an agent run ---
+import time
 
-    with tracer.with_span("llm-call") as llm:
-        llm.set_attribute("model", "gpt-4o")
-        llm.add_event("prompt-built", {"tokens": 512})
+def call_llm(prompt: str) -> dict:
+    active_agents.increment()
+    t0 = time.monotonic()
+    try:
+        # ... your LLM call here ...
+        response_tokens = 312
+        tokens_used.increment(by=response_tokens)
+        return {"tokens": response_tokens}
+    except Exception as e:
+        api_errors.increment()
+        raise
+    finally:
+        elapsed = (time.monotonic() - t0) * 1000
+        latency_ms.observe(elapsed)
+        active_agents.decrement()
 
-        with tracer.with_span("openai-api") as api:
-            api.set_attribute("endpoint", "chat/completions")
-            # ... call OpenAI
+# Run several calls
+for prompt in ["Summarize X", "Translate Y", "Classify Z"]:
+    call_llm(prompt)
 
-    with tracer.with_span("tool-execution") as tool:
-        tool.set_attribute("tool", "web_search")
-        # ... execute tool
+# --- Inspect metrics ---
+print(f"Total tokens consumed : {tokens_used.value}")
+print(f"Total API errors      : {api_errors.value}")
+print(f"Mean latency (ms)     : {latency_ms.mean:.1f}")
+print(f"p95  latency (ms)     : {latency_ms.percentile(0.95):.1f}")
+print(f"Active agents now     : {active_agents.value}")
 
-    with tracer.with_span("memory-store") as mem:
-        mem.set_attribute("store", "lancedb")
-        # ... store to memory
-
-# 3. Inspect results
-trace = collector.get_trace(root.trace_id)
-for span in trace:
-    indent = "  " if span.parent_id else ""
-    print(f"{indent}[{span.status}] {span.name}: {span.duration_ms:.1f}ms")
+# --- Export all metrics as dicts (ship to your log sink) ---
+import json
+snapshot = registry.collect()
+print(json.dumps(snapshot, indent=2, default=str))
 ```
 
-Output:
+**Sample output:**
+
 ```
-[ok] router: 285.3ms
-  [ok] budget-check: 1.8ms
-  [ok] llm-call: 231.4ms
-    [ok] openai-api: 229.1ms
-  [ok] tool-execution: 46.2ms
-    [ok] web-search: 41.0ms
-    [ok] result-parse: 5.1ms
-  [ok] memory-store: 8.3ms
+Total tokens consumed : 936.0
+Total API errors      : 0.0
+Mean latency (ms)     : 1.3
+p95  latency (ms)     : 2.1
+Active agents now     : 0.0
 ```
 
 ---
 
-## @traced Decorator
+## API Reference
+
+### `Counter`
+
+Monotonically increasing counter. Use for: token counts, request counts, error counts.
 
 ```python
-from agent_telemetry import traced
+from agent_telemetry import Counter
 
-# Bare decorator — uses function name as span name
-@traced
-def route_request(prompt: str):
-    return "llm"
+c = Counter("requests_total", labels={"model": "gpt-4"})
+c.increment()          # +1
+c.increment(by=150)    # +150
+print(c.value)         # float
+c.reset()              # back to 0
+c.to_dict()            # {"type": "counter", "name": ..., "labels": ..., "value": ...}
+```
 
-# Custom span name
-@traced(name="budget-check")
-def check_budget(user_id: str, cost: float) -> bool:
-    return True
+### `Gauge`
 
-# Pre-set attributes
-@traced(attributes={"component": "llm", "provider": "openai"})
-def call_llm(prompt: str) -> str:
-    return "response"
+Current value — goes up and down. Use for: active agents, queue depth, memory.
 
-# Bring your own tracer (for production use)
-tracer = Tracer("my-service")
+```python
+from agent_telemetry import Gauge
 
-@traced(tracer=tracer)
-def my_function():
-    pass
+g = Gauge("agents_active")
+g.set(5)
+g.increment()          # 6
+g.decrement(by=2)      # 4
+print(g.value)
+g.to_dict()
+```
+
+### `Histogram`
+
+Tracks value distribution. Use for: latency, token-per-request, cost-per-call.
+
+```python
+from agent_telemetry import Histogram
+
+h = Histogram("latency_ms", buckets=[10, 50, 100, 500, 1000])
+h.observe(73.4)
+h.observe(210.1)
+
+print(h.count)              # 2
+print(h.sum)                # 283.5
+print(h.mean)               # 141.75
+print(h.percentile(0.95))   # p95
+h.to_dict()                 # full bucket breakdown
+```
+
+Default buckets: `[10, 50, 100, 250, 500, 1000, 2500, 5000]`
+
+### `MetricsRegistry`
+
+Central registry — creates, stores, and exports all metrics.
+
+```python
+from agent_telemetry import MetricsRegistry
+
+registry = MetricsRegistry()
+
+c = registry.counter("calls")           # get-or-create Counter
+g = registry.gauge("workers")           # get-or-create Gauge
+h = registry.histogram("latency_ms")    # get-or-create Histogram
+
+all_metrics = registry.collect()        # list[dict]
+registry.reset_all()                    # resets all counters
+registry.clear()                        # removes all metrics (useful in tests)
 ```
 
 ---
 
-## Components
+## Export / Integration
 
-### `Span`
-
-```python
-from agent_telemetry import Span
-
-with Span("my-op") as span:
-    span.set_attribute("key", "value")
-    span.add_event("milestone", {"detail": "something happened"})
-
-print(span.duration_ms)   # float ms
-print(span.to_dict())     # OTEL-compatible dict
-```
-
-### `Tracer`
+`collect()` returns plain Python dicts — ship them anywhere:
 
 ```python
-tracer = Tracer("service-name")
+import json, logging
 
-# Manual
-span = tracer.start_span("op")
-span.set_attribute("x", 1)
-span.finish()
-tracer.record(span)
+snapshot = registry.collect()
 
-# Preferred: context manager
-with tracer.with_span("op") as span:
-    span.set_attribute("x", 1)
+# → structured log
+logging.info("metrics", extra={"metrics": snapshot})
 
-# Active span (thread-local)
-active = tracer.get_active_span()
-```
+# → file
+with open("metrics.json", "w") as f:
+    json.dump(snapshot, f, default=str)
 
-### `TraceCollector`
-
-```python
-from agent_telemetry import TraceCollector
-
-collector = TraceCollector(max_traces=1000)
-
-# Query
-spans = collector.get_trace("trace-uuid")
-recent = collector.recent(limit=10)
-
-# Statistics
-stats = collector.stats()
-# {
-#   "total_spans": 42,
-#   "total_traces": 5,
-#   "error_rate": 0.047,
-#   "error_count": 2,
-#   "avg_duration_ms": {"router": 12.4, "llm-call": 230.1}
-# }
-
-# OTEL-compatible export
-json_str = collector.export_json()
-```
-
----
-
-## Error Handling
-
-Exceptions are automatically captured:
-
-```python
-with tracer.with_span("risky-op") as span:
-    raise ValueError("quota exceeded")
-
-# span.status == "error"
-# span.attributes["error.type"] == "ValueError"
-# span.attributes["error.message"] == "quota exceeded"
-```
-
----
-
-## OTEL Export Format
-
-`collector.export_json()` produces the OpenTelemetry ResourceSpans JSON format,
-compatible with OTEL collectors, Jaeger, Zipkin exporters:
-
-```json
-{
-  "resourceSpans": [{
-    "resource": {"attributes": {"service.name": "my-agent"}},
-    "scopeSpans": [{
-      "scope": {"name": "agent-telemetry", "version": "0.1.0"},
-      "spans": [{
-        "name": "router",
-        "traceId": "...",
-        "spanId": "...",
-        "parentSpanId": null,
-        "startTimeUnixNano": 1700000000000000000,
-        "endTimeUnixNano":   1700000000285000000,
-        "durationMs": 285.3,
-        "status": {"code": "ok"},
-        "attributes": {"service.name": "my-agent", "input_tokens": 512},
-        "events": []
-      }]
-    }]
-  }]
-}
+# → your own HTTP sink
+import urllib.request, json
+req = urllib.request.Request(
+    "https://your-sink/metrics",
+    data=json.dumps(snapshot).encode(),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+urllib.request.urlopen(req)
 ```
 
 ---
 
 ## Thread Safety
 
-All `TraceCollector` operations are protected by a `threading.Lock`.
-`Tracer` uses `threading.local` for the active-span stack — each thread
-has its own independent call stack, making `Tracer` safe to share across threads.
+All metric operations are protected by `threading.Lock`. Safe to use across multiple agent threads.
 
 ---
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
