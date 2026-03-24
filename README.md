@@ -1,205 +1,112 @@
+<div align="center">
+<img src="assets/hero.svg" width="100%"/>
+</div>
+
 # agent-telemetry
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
+**OTEL-compatible lightweight tracing for LLM agents. Zero external dependencies.**
+
+[![PyPI](https://img.shields.io/pypi/v/agent-telemetry?color=blue)](https://pypi.org/project/agent-telemetry/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-42%20passed-brightgreen)]()
-
-**Lightweight, stdlib-only metrics collection and export for LLM agents.**
-
-No Prometheus, no OpenTelemetry, no infrastructure required.  
-Drop it in, instrument in 5 lines, debug with confidence.
+[![Zero deps](https://img.shields.io/badge/dependencies-zero-brightgreen)](pyproject.toml)
 
 ---
 
-## Problem
+## The Problem
 
-Production LLM agents are blind without telemetry:
+Production LLM agents fail silently. Without otel-compatible lightweight tracing, you get undefined behaviour at scale — race conditions, lost state, cascading failures, and no way to debug what went wrong.
 
-- How many tokens did that agent consume?
-- Which model did it call — and how often?
-- What's the p95 latency? The failure rate?
-- Is the active-agent count climbing under load?
+`agent-telemetry` gives you a production-ready otel-compatible lightweight tracing primitive with a clean API, tested edge cases, and zero configuration.
 
-`agent-telemetry` solves this with **zero dependencies**, pure Python stdlib.
-
----
-
-## Install
+## Installation
 
 ```bash
 pip install agent-telemetry
 ```
 
----
+Or from source:
 
-## Quick Start — LLM Token Usage Telemetry
+```bash
+git clone https://github.com/darshjme/agent-telemetry.git
+cd agent-telemetry
+pip install -e .
+```
+
+## Quick Start
 
 ```python
-from agent_telemetry import MetricsRegistry
+from agent_telemetry import *  # see API reference below
 
-registry = MetricsRegistry()
-
-# --- Define your metrics ---
-tokens_used   = registry.counter("llm_tokens_total",  labels={"model": "claude-3-opus"})
-api_errors    = registry.counter("llm_errors_total",  labels={"model": "claude-3-opus"})
-active_agents = registry.gauge("agents_active")
-latency_ms    = registry.histogram("llm_latency_ms")
-
-# --- Simulate an agent run ---
-import time
-
-def call_llm(prompt: str) -> dict:
-    active_agents.increment()
-    t0 = time.monotonic()
-    try:
-        # ... your LLM call here ...
-        response_tokens = 312
-        tokens_used.increment(by=response_tokens)
-        return {"tokens": response_tokens}
-    except Exception as e:
-        api_errors.increment()
-        raise
-    finally:
-        elapsed = (time.monotonic() - t0) * 1000
-        latency_ms.observe(elapsed)
-        active_agents.decrement()
-
-# Run several calls
-for prompt in ["Summarize X", "Translate Y", "Classify Z"]:
-    call_llm(prompt)
-
-# --- Inspect metrics ---
-print(f"Total tokens consumed : {tokens_used.value}")
-print(f"Total API errors      : {api_errors.value}")
-print(f"Mean latency (ms)     : {latency_ms.mean:.1f}")
-print(f"p95  latency (ms)     : {latency_ms.percentile(0.95):.1f}")
-print(f"Active agents now     : {active_agents.value}")
-
-# --- Export all metrics as dicts (ship to your log sink) ---
-import json
-snapshot = registry.collect()
-print(json.dumps(snapshot, indent=2, default=str))
+# See examples/ directory for complete working examples
 ```
-
-**Sample output:**
-
-```
-Total tokens consumed : 936.0
-Total API errors      : 0.0
-Mean latency (ms)     : 1.3
-p95  latency (ms)     : 2.1
-Active agents now     : 0.0
-```
-
----
 
 ## API Reference
 
-### `Counter`
+The main classes and functions are defined in `agent_telemetry/__init__.py`.
 
-Monotonically increasing counter. Use for: token counts, request counts, error counts.
+Key exports: `Span · Tracer · TraceCollector · @traced decorator`
 
-```python
-from agent_telemetry import Counter
+All classes follow a consistent interface:
+- Instantiate with sensible defaults
+- Compose with other arsenal libraries
+- Zero external dependencies required
 
-c = Counter("requests_total", labels={"model": "gpt-4"})
-c.increment()          # +1
-c.increment(by=150)    # +150
-print(c.value)         # float
-c.reset()              # back to 0
-c.to_dict()            # {"type": "counter", "name": ..., "labels": ..., "value": ...}
+See the source code and `tests/` directory for verified usage examples.
+
+## How It Works
+
+```mermaid
+flowchart LR
+    A[Agent Task] --> B[agent-telemetry]
+    B --> C{Decision}
+    C -->|success| D[✅ Result]
+    C -->|failure| E[⚠️ Handle]
+    E --> B
+
+    style B fill:#161b22,stroke:#58a6ff,stroke-width:2,color:#58a6ff
+    style D fill:#1a3320,stroke:#238636,color:#3fb950
+    style E fill:#3d1a1a,stroke:#f85149,color:#f85149
 ```
 
-### `Gauge`
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant AgentTelemetry as agent-telemetry
+    participant Output
 
-Current value — goes up and down. Use for: active agents, queue depth, memory.
+    Agent->>AgentTelemetry: initialize()
+    AgentTelemetry-->>Agent: ready
 
-```python
-from agent_telemetry import Gauge
+    loop Agent Run
+        Agent->>AgentTelemetry: process(input)
+        AgentTelemetry-->>Agent: result
+    end
 
-g = Gauge("agents_active")
-g.set(5)
-g.increment()          # 6
-g.decrement(by=2)      # 4
-print(g.value)
-g.to_dict()
+    Agent->>Output: deliver(result)
 ```
 
-### `Histogram`
+## Philosophy
 
-Tracks value distribution. Use for: latency, token-per-request, cost-per-call.
-
-```python
-from agent_telemetry import Histogram
-
-h = Histogram("latency_ms", buckets=[10, 50, 100, 500, 1000])
-h.observe(73.4)
-h.observe(210.1)
-
-print(h.count)              # 2
-print(h.sum)                # 283.5
-print(h.mean)               # 141.75
-print(h.percentile(0.95))   # p95
-h.to_dict()                 # full bucket breakdown
-```
-
-Default buckets: `[10, 50, 100, 250, 500, 1000, 2500, 5000]`
-
-### `MetricsRegistry`
-
-Central registry — creates, stores, and exports all metrics.
-
-```python
-from agent_telemetry import MetricsRegistry
-
-registry = MetricsRegistry()
-
-c = registry.counter("calls")           # get-or-create Counter
-g = registry.gauge("workers")           # get-or-create Gauge
-h = registry.histogram("latency_ms")    # get-or-create Histogram
-
-all_metrics = registry.collect()        # list[dict]
-registry.reset_all()                    # resets all counters
-registry.clear()                        # removes all metrics (useful in tests)
-```
+Vyasa saw the entire Mahabharata war from a mountaintop. agent-telemetry gives you that vantage point.
 
 ---
 
-## Export / Integration
+## Part of the Arsenal
 
-`collect()` returns plain Python dicts — ship them anywhere:
+`agent-telemetry` is one of six production libraries for LLM agents:
 
-```python
-import json, logging
+| Library | Purpose |
+|---------|---------|
+| [herald](https://github.com/darshjme/herald) | Semantic task routing |
+| [engram](https://github.com/darshjme/engram) | Agent memory |
+| [sentinel](https://github.com/darshjme/sentinel) | ReAct loop guards |
+| [verdict](https://github.com/darshjme/verdict) | Agent evaluation |
+| [agent-guardrails](https://github.com/darshjme/agent-guardrails) | Output validation |
+| [agent-observability](https://github.com/darshjme/agent-observability) | Tracing & metrics |
 
-snapshot = registry.collect()
-
-# → structured log
-logging.info("metrics", extra={"metrics": snapshot})
-
-# → file
-with open("metrics.json", "w") as f:
-    json.dump(snapshot, f, default=str)
-
-# → your own HTTP sink
-import urllib.request, json
-req = urllib.request.Request(
-    "https://your-sink/metrics",
-    data=json.dumps(snapshot).encode(),
-    headers={"Content-Type": "application/json"},
-    method="POST",
-)
-urllib.request.urlopen(req)
-```
+→ [arsenal](https://github.com/darshjme/arsenal) — the complete stack
 
 ---
 
-## Thread Safety
-
-All metric operations are protected by `threading.Lock`. Safe to use across multiple agent threads.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+*Built by [Darshankumar Joshi](https://github.com/darshjme), Gujarat, India.*
