@@ -1,18 +1,32 @@
 <div align="center">
-<img src="assets/hero.svg" width="100%"/>
+
+<img src="assets/agent-telemetry-hero.png" alt="agent-telemetry — Vedic Arsenal" width="100%" />
+
+# 🌊 agent-telemetry
+
+### *परिमाण* — Parimaana — measurement of the cosmos
+
+**Lightweight OTEL-compatible tracing for LLM agents — Span, Tracer, TraceCollector, @traced decorator. Zero dependencies.**
+
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)](https://python.org)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square)](https://github.com/darshjme/agent-telemetry)
+[![Tests](https://img.shields.io/badge/Tests-Passing-success?style=flat-square)](https://github.com/darshjme/agent-telemetry/actions)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+[![Vedic Arsenal](https://img.shields.io/badge/Vedic%20Arsenal-100%20libs-purple?style=flat-square)](https://github.com/darshjme/arsenal)
+
+*Part of the [**Vedic Arsenal**](https://github.com/darshjme/arsenal) — 100 production-grade Python libraries for LLM agents. Zero dependencies. Battle-tested.*
+
 </div>
-
-# agent-telemetry
-
-**Lightweight stdlib-only metrics collection and export for LLM agents**
-
-[![PyPI version](https://img.shields.io/pypi/v/agent-telemetry?color=blue&style=flat-square)](https://pypi.org/project/agent-telemetry/) [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square)](https://python.org) [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE) [![Tests](https://img.shields.io/badge/tests-passing-brightgreen?style=flat-square)](#)
 
 ---
 
-## The Problem
+## Overview
 
-Without telemetry, LLM agents are black boxes. Latency spikes, token overruns, and error-rate degradations are invisible until a user complains. By then, the incident has been running for hours with no trace to diagnose it.
+`agent-telemetry` implements **lightweight otel-compatible tracing for llm agents — span, tracer, tracecollector, @traced decorator. zero dependencies.**
+
+Inspired by the Vedic principle of *परिमाण* (Parimaana), this library brings the ancient wisdom of structured discipline to modern LLM agent engineering.
+
+No external dependencies. Pure Python 3.8+. Drop it in anywhere.
 
 ## Installation
 
@@ -20,92 +34,67 @@ Without telemetry, LLM agents are black boxes. Latency spikes, token overruns, a
 pip install agent-telemetry
 ```
 
+Or clone directly:
+```bash
+git clone https://github.com/darshjme/agent-telemetry.git
+cd agent-telemetry
+pip install -e .
+```
+
 ## Quick Start
 
 ```python
-from agent_telemetry import TraceCollector, Counter, Gauge
+from telemetry import *
 
-# Initialise
-instance = TraceCollector(name="my_agent")
-
-# Use
-result = instance.run()
-print(result)
+# Initialize
+# See examples/ for full usage patterns
 ```
 
-## API Reference
+## Why `agent-telemetry`?
 
-### `TraceCollector`
+Production LLM systems fail in predictable ways. `agent-telemetry` solves the **telemetry** failure mode with:
 
-```python
-class TraceCollector:
-    """
-    def __init__(self, max_traces: int = 1000) -> None:
-    def collect(self, span: Span) -> None:
-        """Store a completed span."""
+- **Zero dependencies** — no version conflicts, no bloat
+- **Battle-tested patterns** — extracted from real production systems
+- **Type-safe** — full type hints, mypy-compatible
+- **Minimal surface area** — one job, done well
+- **Composable** — works with any LLM framework (LangChain, LlamaIndex, raw OpenAI, etc.)
+
+## The Vedic Arsenal
+
+`agent-telemetry` is part of **[darshjme/arsenal](https://github.com/darshjme/arsenal)** — a collection of 100 focused Python libraries for LLM agent infrastructure.
+
+Each library solves exactly one problem. Together they form a complete stack.
+
+```
+pip install agent-telemetry  # this library
+# Browse all 100: https://github.com/darshjme/arsenal
 ```
 
-### `Counter`
+## Contributing
 
-```python
-class Counter:
-    """Monotonically increasing counter metric."""
-    def __init__(self, name: str, labels: Optional[dict] = None) -> None:
-    def increment(self, by: float = 1.0) -> None:
-    def value(self) -> float:
-    def reset(self) -> None:
-```
+Found a bug? Have an improvement?
 
-### `Gauge`
+1. Fork the repo
+2. Create a feature branch (`git checkout -b fix/your-fix`)
+3. Add tests
+4. Open a PR
 
-```python
-class Gauge:
-    """Current-value metric that can go up or down."""
-    def __init__(self, name: str, labels: Optional[dict] = None) -> None:
-    def set(self, value: float) -> None:
-    def increment(self, by: float = 1.0) -> None:
-    def decrement(self, by: float = 1.0) -> None:
-```
+All contributions welcome. Keep it zero-dependency.
 
+## License
 
-## How It Works
-
-### Flow
-
-```mermaid
-flowchart LR
-    A[User Code] -->|create| B[TraceCollector]
-    B -->|configure| C[Counter]
-    C -->|execute| D{Success?}
-    D -->|yes| E[Return Result]
-    D -->|no| F[Error Handler]
-    F --> G[Fallback / Retry]
-    G --> C
-```
-
-### Sequence
-
-```mermaid
-sequenceDiagram
-    participant App
-    participant TraceCollector
-    participant Counter
-
-    App->>+TraceCollector: initialise()
-    TraceCollector->>+Counter: configure()
-    Counter-->>-TraceCollector: ready
-    App->>+TraceCollector: run(context)
-    TraceCollector->>+Counter: execute(context)
-    Counter-->>-TraceCollector: result
-    TraceCollector-->>-App: WorkflowResult
-```
-
-## Philosophy
-
-> The Gita asks us to observe the field (*kshetra*) without attachment; telemetry is witness-consciousness for code.
+MIT — use freely, build freely.
 
 ---
 
-*Part of the [arsenal](https://github.com/darshjme/arsenal) — production stack for LLM agents.*
+<div align="center">
 
-*Built by [Darshankumar Joshi](https://github.com/darshjme), Gujarat, India.*
+**Built with 🌊 by [Darshankumar Joshi](https://github.com/darshjme)**
+
+*"कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"*
+*Your right is to action alone, never to the fruits thereof.*
+
+[Arsenal](https://github.com/darshjme/arsenal) · [GitHub](https://github.com/darshjme) · [Twitter](https://twitter.com/thedarshanjoshi)
+
+</div>
